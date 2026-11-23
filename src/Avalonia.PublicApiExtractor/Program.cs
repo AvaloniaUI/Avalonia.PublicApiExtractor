@@ -294,7 +294,12 @@ internal static class Program
             if (c == '*')
             {
                 var isDoubleStar = i + 1 < glob.Length && glob[i + 1] == '*';
-                if (isDoubleStar)
+                if (isDoubleStar && i + 2 < glob.Length && glob[i + 2] == '/')
+                {
+                    sb.Append("(.*/)?");
+                    i += 2;
+                }
+                else if (isDoubleStar)
                 {
                     sb.Append(".*");
                     i++;
@@ -414,8 +419,10 @@ internal static class Program
         // Delegate types are emitted as single-line declarations.
         if (t.TypeKind == TypeKind.Delegate && t.DelegateInvokeMethod is { } invoke)
         {
-            var decl = $"{indent}{GetAccessibilityKeyword(t.DeclaredAccessibility)} delegate {FormatType(invoke.ReturnType, ctx)} {t.Name}{RenderTypeParameters(t)}{RenderParameters(invoke, ctx)}{RenderTypeParameterConstraints(t, ctx)};";
-            lines.Add(decl.Trim());
+            var delegateConstraints = RenderTypeParameterConstraints(t, ctx);
+            if (delegateConstraints.Length != 0)
+                delegateConstraints = " " + delegateConstraints;
+            lines.Add($"{indent}{GetAccessibilityKeyword(t.DeclaredAccessibility)} delegate {FormatType(invoke.ReturnType, ctx)} {t.Name}{RenderTypeParameters(t)}{RenderParameters(invoke, ctx)}{delegateConstraints};");
             return;
         }
 
@@ -663,13 +670,23 @@ internal static class Program
         }
 
         var accessors = new List<string>();
-        if (p.GetMethod is not null)
-            accessors.Add("get;");
-        if (p.SetMethod is not null)
-            accessors.Add("set;");
-        // Roslyn symbols don't expose init accessors directly; treat an init setter as a setter for skeleton purposes.
+        if (RenderAccessor(p, p.GetMethod, "get") is { } getter)
+            accessors.Add(getter);
+        if (RenderAccessor(p, p.SetMethod, p.SetMethod?.IsInitOnly == true ? "init" : "set") is { } setter)
+            accessors.Add(setter);
 
         return $"{prefix}{FormatType(p.Type, ctx)} {name} {{ {string.Join(" ", accessors)} }}";
+    }
+
+    private static string? RenderAccessor(IPropertySymbol p, IMethodSymbol? accessor, string keyword)
+    {
+        if (accessor is null)
+            return null;
+        if (p.ExplicitInterfaceImplementations.Length != 0 || accessor.DeclaredAccessibility == p.DeclaredAccessibility)
+            return keyword + ";";
+        if (!IsExternallyVisibleAccessibility(accessor.DeclaredAccessibility))
+            return null;
+        return $"{GetAccessibilityKeyword(accessor.DeclaredAccessibility)} {keyword};";
     }
 
     private static string RenderMethod(IMethodSymbol m, INamedTypeSymbol containingType, DisplayContext ctx, SymbolDisplayFormat memberFormat, bool inInterface)

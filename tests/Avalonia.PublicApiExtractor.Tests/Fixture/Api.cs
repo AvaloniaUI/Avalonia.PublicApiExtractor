@@ -4,6 +4,8 @@ namespace Fixture
 {
     public enum Color { Red, Green }
 
+    public delegate T Factory<T>(int x) where T : class;
+
     public interface IShape
     {
         int Area { get; }
@@ -14,6 +16,10 @@ namespace Fixture
         public const string Name = "widget";
         public Widget(int size) { }
         public int Size { get; set; }
+        public int PrivateSetter { get; private set; }
+        public int ProtectedSetter { get; protected set; }
+        public int InitOnly { get; init; }
+        public delegate void Callback();
         int IShape.Area => 0;
         void IDisposable.Dispose() { }
         public static Widget operator +(Widget a, Widget b) => a;

@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <Compile Remove="Excluded*.cs" />
+    <Compile Remove="**/Excluded*.cs" />
   </ItemGroup>
 </Project>

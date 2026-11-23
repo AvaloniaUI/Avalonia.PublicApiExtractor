@@ -37,6 +37,25 @@ public class ProgramTests
     }
 
     [Fact]
+    public async Task Renders_accessors_by_visibility()
+    {
+        var api = await GenerateAsync();
+
+        Assert.Contains("public int PrivateSetter { get; }", api);
+        Assert.Contains("public int ProtectedSetter { get; protected set; }", api);
+        Assert.Contains("public int InitOnly { get; init; }", api);
+    }
+
+    [Fact]
+    public async Task Indents_delegates()
+    {
+        var api = await GenerateAsync();
+
+        Assert.Contains("\n    public delegate T Factory<T>(int x) where T : class;\n", api);
+        Assert.Contains("\n        public delegate void Callback();\n", api);
+    }
+
+    [Fact]
     public async Task Skips_non_public_and_removed_code()
     {
         var api = await GenerateAsync();
@@ -45,6 +64,7 @@ public class ProgramTests
         Assert.DoesNotContain("PrivateMethod", api);
         Assert.DoesNotContain("InternalType", api);
         Assert.DoesNotContain("ExcludedType", api);
+        Assert.DoesNotContain("ExcludedNestedType", api);
     }
 
     [Fact]
