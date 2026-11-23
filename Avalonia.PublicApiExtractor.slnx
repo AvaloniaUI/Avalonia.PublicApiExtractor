@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="src/Avalonia.PublicApiExtractor/Avalonia.PublicApiExtractor.csproj" />
+  <Project Path="tests/Avalonia.PublicApiExtractor.Tests/Avalonia.PublicApiExtractor.Tests.csproj" />
 </Solution>

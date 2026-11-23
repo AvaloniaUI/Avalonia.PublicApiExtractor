@@ -203,7 +203,7 @@ internal static class Program
         var removeGlobs = ReadCompileRemoveGlobs(csprojPath);
 
         var csFiles = Directory.EnumerateFiles(projectDir, "*.cs", SearchOption.AllDirectories)
-            .Where(p => !IsUnderDirectory(p, "bin") && !IsUnderDirectory(p, "obj"))
+            .Where(p => !IsUnderDirectory(projectDir, p, "bin") && !IsUnderDirectory(projectDir, p, "obj"))
             .Where(p => !MatchesAnyGlob(projectDir, p, removeGlobs))
             .ToList();
 
@@ -263,9 +263,9 @@ internal static class Program
         }
     }
 
-    private static bool IsUnderDirectory(string path, string dirName)
+    private static bool IsUnderDirectory(string projectDir, string path, string dirName)
     {
-        var parts = Path.GetFullPath(path)
+        var parts = Path.GetRelativePath(projectDir, path)
             .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return parts.Any(p => string.Equals(p, dirName, StringComparison.OrdinalIgnoreCase));
     }

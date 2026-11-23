@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Avalonia.PublicApiExtractor.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="**/public-api-skeleton*.cs" />
   </ItemGroup>
 </Project>

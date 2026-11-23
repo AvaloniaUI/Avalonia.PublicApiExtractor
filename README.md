@@ -11,6 +11,12 @@ dotnet run --project src/Avalonia.PublicApiExtractor -- [csprojPath] [outputPath
 - `csprojPath`: defaults to the only `*.csproj` in the current directory.
 - `outputPath`: defaults to `public-api-skeleton.cs` in the nearest `artifacts/` folder above the csproj, or next to the csproj if there is none.
 
+Run the tests:
+
+```sh
+dotnet test Avalonia.PublicApiExtractor.slnx
+```
+
 To install as a global tool:
 
 ```sh
