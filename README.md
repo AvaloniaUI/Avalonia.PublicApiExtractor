@@ -1,6 +1,6 @@
 # Avalonia.PublicApiExtractor
 
-Generates a C# skeleton of the public API of a project from its `.csproj`, using Roslyn. Extracted from `tools/Avalonia.DBus.PublicApiExtractor` in [Avalonia.DBus](https://github.com/AvaloniaUI/Avalonia.DBus).
+Generates a C# skeleton of the public API of a project from its `.csproj`, using Roslyn.
 
 ## Usage
 
