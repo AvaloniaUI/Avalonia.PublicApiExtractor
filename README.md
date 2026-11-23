@@ -16,7 +16,7 @@ dotnet run --project src/Avalonia.PublicApiExtractor -- [--no-docs] [--no-proper
 Run the tests:
 
 ```sh
-dotnet test Avalonia.PublicApiExtractor.slnx
+dotnet test --solution Avalonia.PublicApiExtractor.slnx
 ```
 
 To install as a global tool:
