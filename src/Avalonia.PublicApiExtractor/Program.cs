@@ -394,21 +394,8 @@ internal static class Program
 
     private static string GetNamespaceName(INamedTypeSymbol t)
     {
-        // Use a stable, fully-qualified namespace name so `using` directives and grouping are correct.
-        // `MinimallyQualifiedFormat` can yield shortened names like "Threading" instead of "System.Threading".
-        var ns = t.ContainingNamespace?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
-        return StripGlobalPrefix(ns);
-    }
-
-    private static string StripGlobalPrefix(string s)
-    {
-        // "global::X.Y" -> "X.Y", "global::" -> ""
-        const string globalPrefix = "global::";
-        if (s.StartsWith(globalPrefix, StringComparison.Ordinal))
-            s = s[globalPrefix.Length..];
-        if (string.Equals(s, "global::", StringComparison.Ordinal))
-            return "";
-        return s;
+        var ns = t.ContainingNamespace;
+        return ns is null || ns.IsGlobalNamespace ? "" : ns.ToDisplayString();
     }
 
     private static void EmitType(List<string> lines, INamedTypeSymbol t, DisplayContext ctx, SymbolDisplayFormat memberFormat, int indentLevel)
@@ -447,17 +434,25 @@ internal static class Program
 
         var header = new StringBuilder();
         header.Append(indent);
-        header.Append(string.Join(" ", typeMods.Where(s => s.Length != 0)));
-        if (header.Length > indent.Length) header.Append(' ');
-        header.Append(kindKeyword).Append(' ').Append(t.Name).Append(RenderTypeParameters(t));
+        if (t.TypeKind == TypeKind.Extension)
+        {
+            var receiver = t.ExtensionParameter is { } rp ? RenderParameter(rp, isThis: false, ctx) : "";
+            header.Append("extension").Append(RenderTypeParameters(t)).Append('(').Append(receiver).Append(')');
+        }
+        else
+        {
+            header.Append(string.Join(" ", typeMods.Where(s => s.Length != 0)));
+            if (header.Length > indent.Length) header.Append(' ');
+            header.Append(kindKeyword).Append(' ').Append(t.Name).Append(RenderTypeParameters(t));
 
-        var bases = new List<string>();
-        if (t.TypeKind == TypeKind.Class && t.BaseType is { } bt && bt.SpecialType != SpecialType.System_Object)
-            bases.Add(FormatType(bt, ctx));
-        if (t.TypeKind != TypeKind.Enum)
-            bases.AddRange(t.Interfaces.Select(i => FormatType(i, ctx)));
-        if (bases.Count != 0)
-            header.Append(" : ").Append(string.Join(", ", bases.Distinct(StringComparer.Ordinal)));
+            var bases = new List<string>();
+            if (t.TypeKind == TypeKind.Class && t.BaseType is { } bt && bt.SpecialType != SpecialType.System_Object)
+                bases.Add(FormatType(bt, ctx));
+            if (t.TypeKind != TypeKind.Enum)
+                bases.AddRange(t.Interfaces.Select(i => FormatType(i, ctx)));
+            if (bases.Count != 0)
+                header.Append(" : ").Append(string.Join(", ", bases.Distinct(StringComparer.Ordinal)));
+        }
 
         var constraints = RenderTypeParameterConstraints(t, ctx);
         lines.Add(header.ToString());
@@ -597,7 +592,7 @@ internal static class Program
 
         if (f.IsConst)
         {
-            sb.Append(" = ").Append(RenderConstant(f.ConstantValue)).Append(';');
+            sb.Append(" = ").Append(RenderConstant(f.Type, f.ConstantValue, ctx)).Append(';');
         }
         else
         {
@@ -767,52 +762,35 @@ internal static class Program
         var ps = m.Parameters;
         if (ps.Length == 0) return "()";
 
-        var parts = new List<string>(ps.Length);
-        foreach (var p in ps)
-        {
-            var sb = new StringBuilder();
-            if (p.IsParams) sb.Append("params ");
-            sb.Append(p.RefKind switch
-            {
-                RefKind.In => "in ",
-                RefKind.Out => "out ",
-                RefKind.Ref => "ref ",
-                RefKind.RefReadOnlyParameter => "ref readonly ",
-                _ => "",
-            });
-
-            sb.Append(FormatType(p.Type, ctx)).Append(' ').Append(p.Name);
-
-            if (p.HasExplicitDefaultValue)
-                sb.Append(" = ").Append(RenderDefaultValue(p));
-
-            parts.Add(sb.ToString());
-        }
-
+        var parts = ps.Select((p, i) => RenderParameter(p, isThis: i == 0 && m.IsExtensionMethod, ctx));
         return "(" + string.Join(", ", parts) + ")";
     }
 
-    private static string RenderIndexerParameters(IPropertySymbol p, DisplayContext ctx)
+    private static string RenderIndexerParameters(IPropertySymbol p, DisplayContext ctx) =>
+        string.Join(", ", p.Parameters.Select(par => RenderParameter(par, isThis: false, ctx)));
+
+    private static string RenderParameter(IParameterSymbol p, bool isThis, DisplayContext ctx)
     {
-        if (p.Parameters.Length == 0) return "";
-        var parts = new List<string>(p.Parameters.Length);
-        foreach (var par in p.Parameters)
+        var sb = new StringBuilder();
+        if (isThis) sb.Append("this ");
+        if (p.IsParams) sb.Append("params ");
+        sb.Append(p.RefKind switch
         {
-            var sb = new StringBuilder();
-            sb.Append(par.RefKind switch
-            {
-                RefKind.In => "in ",
-                RefKind.Out => "out ",
-                RefKind.Ref => "ref ",
-                RefKind.RefReadOnlyParameter => "ref readonly ",
-                _ => "",
-            });
-            sb.Append(FormatType(par.Type, ctx)).Append(' ').Append(par.Name);
-            if (par.HasExplicitDefaultValue)
-                sb.Append(" = ").Append(RenderDefaultValue(par));
-            parts.Add(sb.ToString());
-        }
-        return string.Join(", ", parts);
+            RefKind.In => "in ",
+            RefKind.Out => "out ",
+            RefKind.Ref => "ref ",
+            RefKind.RefReadOnlyParameter => "ref readonly ",
+            _ => "",
+        });
+
+        sb.Append(FormatType(p.Type, ctx));
+        if (p.Name.Length != 0)
+            sb.Append(' ').Append(EscapeIdentifier(p.Name));
+
+        if (p.HasExplicitDefaultValue)
+            sb.Append(" = ").Append(RenderDefaultValue(p, ctx));
+
+        return sb.ToString();
     }
 
     private static string RenderTypeParameterConstraints(INamedTypeSymbol t, DisplayContext ctx)
@@ -862,7 +840,7 @@ internal static class Program
         return display;
     }
 
-    private static string RenderDefaultValue(IParameterSymbol p)
+    private static string RenderDefaultValue(IParameterSymbol p, DisplayContext ctx)
     {
         // Roslyn uses null for default(T) for many value types; preserve "null" for Nullable<T>.
         if (p.ExplicitDefaultValue is null)
@@ -875,7 +853,18 @@ internal static class Program
             return "null";
         }
 
-        return RenderConstant(p.ExplicitDefaultValue);
+        return RenderConstant(p.Type, p.ExplicitDefaultValue, ctx);
+    }
+
+    private static string RenderConstant(ITypeSymbol type, object? value, DisplayContext ctx)
+    {
+        if (type.TypeKind != TypeKind.Enum || value is null)
+            return RenderConstant(value);
+
+        var typeName = FormatType(type, ctx);
+        var member = type.GetMembers().OfType<IFieldSymbol>()
+            .FirstOrDefault(f => f.HasConstantValue && Equals(f.ConstantValue, value));
+        return member is not null ? $"{typeName}.{member.Name}" : $"({typeName}){RenderConstant(value)}";
     }
 
     private static string RenderConstant(object? value)
@@ -946,7 +935,7 @@ internal static class Program
         for (var i = 0; i < m.Parameters.Length; i++)
         {
             var p = m.Parameters[i];
-            paramParts.Add($"{FormatType(p.Type, ctx)} {p.Name}");
+            paramParts.Add($"{FormatType(p.Type, ctx)} {EscapeIdentifier(p.Name)}");
         }
 
         return $"{FormatType(m.ReturnType, ctx)} operator {opToken}({string.Join(", ", paramParts)})";
@@ -964,6 +953,15 @@ internal static class Program
         public SortedSet<string> NamespacesToImport { get; } = namespacesToImport;
         public string CurrentNamespace { get; set; } = "";
     }
+
+    private static string EscapeIdentifier(string name) =>
+        SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+
+    private static bool IsKeywordType(ITypeSymbol type) => type.SpecialType is
+        SpecialType.System_Object or SpecialType.System_Void or SpecialType.System_Boolean or SpecialType.System_Char or
+        SpecialType.System_SByte or SpecialType.System_Byte or SpecialType.System_Int16 or SpecialType.System_UInt16 or
+        SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64 or
+        SpecialType.System_Decimal or SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_String;
 
     private static string FormatType(ITypeSymbol type, DisplayContext ctx)
     {
@@ -989,7 +987,7 @@ internal static class Program
             case INamedTypeSymbol nts:
             {
                 // Special types (string, int, etc.) won't collide in a meaningful way.
-                if (nts.SpecialType != SpecialType.None)
+                if (IsKeywordType(nts))
                     return false;
 
                 // Use the short display of the generic definition for collision detection.
@@ -1022,7 +1020,7 @@ internal static class Program
                 break;
             case INamedTypeSymbol nts:
             {
-                if (nts.SpecialType != SpecialType.None)
+                if (IsKeywordType(nts))
                     return;
 
                 var ns = GetNamespaceName(nts);
@@ -1060,7 +1058,7 @@ internal static class Program
         void AddNamed(INamedTypeSymbol? s)
         {
             if (s is null) return;
-            if (s.SpecialType != SpecialType.None) return;
+            if (IsKeywordType(s)) return;
             var def = (INamedTypeSymbol)s.OriginalDefinition;
             var key = def.ToDisplayString(shortTypeFormat);
             if (!keysToSymbols.TryGetValue(key, out var set))
@@ -1101,6 +1099,9 @@ internal static class Program
             foreach (var ct in tp.ConstraintTypes)
                 AddType(ct);
         }
+
+        if (t.TypeKind == TypeKind.Extension)
+            AddType(t.ExtensionParameter?.Type);
 
         if (t.TypeKind == TypeKind.Delegate && t.DelegateInvokeMethod is { } inv)
         {

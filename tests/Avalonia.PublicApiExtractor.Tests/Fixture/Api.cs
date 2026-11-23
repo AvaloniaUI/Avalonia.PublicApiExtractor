@@ -24,6 +24,7 @@ namespace Fixture
         void IDisposable.Dispose() { }
         public static Widget operator +(Widget a, Widget b) => a;
         public virtual void Resize(int width, int height = 10) { }
+        public void Resolve(string @ref) { }
         internal void InternalMethod() { }
         private void PrivateMethod() { }
     }

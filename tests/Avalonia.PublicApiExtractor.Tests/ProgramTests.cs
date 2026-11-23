@@ -34,6 +34,7 @@ public class ProgramTests
         Assert.Contains("public static Widget operator +(Widget a, Widget b);", api);
         Assert.Contains("int IShape.Area { get; }", api);
         Assert.Contains("void IDisposable.Dispose();", api);
+        Assert.Contains("public void Resolve(string @ref);", api);
     }
 
     [Fact]
@@ -53,6 +54,28 @@ public class ProgramTests
 
         Assert.Contains("\n    public delegate T Factory<T>(int x) where T : class;\n", api);
         Assert.Contains("\n        public delegate void Callback();\n", api);
+    }
+
+    [Fact]
+    public async Task Renders_extensions()
+    {
+        var api = await GenerateAsync();
+
+        Assert.Contains("public static int Classic(this Widget widget);", api);
+        Assert.Contains("        extension(Widget widget)\n        {\n            public int Doubled { get; }\n            public static Widget Create();\n            public void Grow(int by);\n        }", api);
+        Assert.Contains("        extension<T>(IEnumerable<T> items)\n        where T : class\n", api);
+    }
+
+    [Fact]
+    public async Task Renders_global_types_enum_defaults_and_usings()
+    {
+        var api = await GenerateAsync();
+
+        Assert.DoesNotContain("<global namespace>", api);
+        Assert.Contains("\npublic partial class GlobalType\n", api);
+        Assert.Contains("public void Paint(Color color = Color.Green, Color fallback = (Color)7);", api);
+        Assert.Contains("using System;", api);
+        Assert.Contains("using System.Collections.Generic;", api);
     }
 
     [Fact]
