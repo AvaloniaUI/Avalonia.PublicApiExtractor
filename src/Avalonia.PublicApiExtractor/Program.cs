@@ -6,7 +6,7 @@ using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace PublicApiGenerator;
+namespace Avalonia.PublicApiExtractor;
 
 internal static class Program
 {
@@ -156,7 +156,7 @@ internal static class Program
 
     private static int Usage()
     {
-        Console.Error.WriteLine("Usage: public-api-generator [csprojPath] [outputPath]");
+        Console.Error.WriteLine("Usage: avalonia-public-api-extractor [csprojPath] [outputPath]");
         Console.Error.WriteLine("Defaults:");
         Console.Error.WriteLine("  csprojPath: the only *.csproj in the current directory");
         Console.Error.WriteLine("  outputPath: artifacts/public-api-skeleton.cs (nearest artifacts/ folder above the csproj)");

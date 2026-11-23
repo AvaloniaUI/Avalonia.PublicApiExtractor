@@ -8,7 +8,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);NU1903</NoWarn>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>public-api-generator</ToolCommandName>
+    <ToolCommandName>avalonia-public-api-extractor</ToolCommandName>
   </PropertyGroup>
 
   <ItemGroup>
