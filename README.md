@@ -5,11 +5,12 @@ Generates a C# skeleton of the public API of a project from its `.csproj`, using
 ## Usage
 
 ```sh
-dotnet run --project src/Avalonia.PublicApiExtractor -- [csprojPath] [outputPath]
+dotnet run --project src/Avalonia.PublicApiExtractor -- [--no-docs] [csprojPath] [outputPath]
 ```
 
 - `csprojPath`: defaults to the only `*.csproj` in the current directory.
 - `outputPath`: defaults to `public-api-skeleton.cs` in the nearest `artifacts/` folder above the csproj, or next to the csproj if there is none.
+- `--no-docs`: omit XML doc comments, which are included by default.
 
 Run the tests:
 

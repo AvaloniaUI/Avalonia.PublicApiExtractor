@@ -4,12 +4,12 @@ public class ProgramTests
 {
     private static readonly string FixtureProject = Path.Combine(AppContext.BaseDirectory, "Fixture", "Fixture.csproj");
 
-    private static async Task<string> GenerateAsync()
+    private static async Task<string> GenerateAsync(params string[] options)
     {
         var output = Path.Combine(Path.GetTempPath(), $"public-api-{Guid.NewGuid():N}.cs");
         try
         {
-            Assert.Equal(0, await Program.Main([FixtureProject, output]));
+            Assert.Equal(0, await Program.Main([.. options, FixtureProject, output]));
             return await File.ReadAllTextAsync(output, TestContext.Current.CancellationToken);
         }
         finally
@@ -35,6 +35,25 @@ public class ProgramTests
         Assert.Contains("int IShape.Area { get; }", api);
         Assert.Contains("void IDisposable.Dispose();", api);
         Assert.Contains("public void Resolve(string @ref);", api);
+    }
+
+    [Fact]
+    public async Task Includes_xml_docs_by_default()
+    {
+        var api = await GenerateAsync();
+
+        Assert.Contains("    /// <summary>\n    /// A widget.\n    /// </summary>\n    public partial class Widget", api);
+        Assert.Contains("        /// <summary>Resizes the widget.</summary>\n        /// <param name=\"width\">New width.</param>\n        /// <param name=\"height\">New height.</param>\n        public virtual void Resize(", api);
+        Assert.Contains("        /// <summary>The red one.</summary>\n        Red,", api);
+    }
+
+    [Fact]
+    public async Task Omits_xml_docs_with_no_docs()
+    {
+        var api = await GenerateAsync("--no-docs");
+
+        Assert.DoesNotContain("///", api);
+        Assert.Contains("public virtual void Resize(int width, int height = 10);", api);
     }
 
     [Fact]
