@@ -15,7 +15,8 @@ internal static class Program
         try
         {
             var includeDocs = !args.Contains("--no-docs", StringComparer.Ordinal);
-            var positional = args.Where(a => a != "--no-docs").ToArray();
+            var propertiesFirst = !args.Contains("--no-properties-first", StringComparer.Ordinal);
+            var positional = args.Where(a => a is not ("--no-docs" or "--no-properties-first")).ToArray();
             if (positional.Length > 2 || positional.Any(a => a.StartsWith("--", StringComparison.Ordinal))) return Usage();
 
             var csprojPath = positional.Length >= 1 ? positional[0] : FindDefaultCsprojPath();
@@ -109,7 +110,8 @@ internal static class Program
                 qualifiedTypeFormat,
                 ambiguousShortTypeKeys,
                 namespacesToImport,
-                includeDocs);
+                includeDocs,
+                propertiesFirst);
 
             foreach (var nsGroup in byNamespace)
             {
@@ -160,8 +162,9 @@ internal static class Program
 
     private static int Usage()
     {
-        Console.Error.WriteLine("Usage: avalonia-public-api-extractor [--no-docs] [csprojPath] [outputPath]");
+        Console.Error.WriteLine("Usage: avalonia-public-api-extractor [--no-docs] [--no-properties-first] [csprojPath] [outputPath]");
         Console.Error.WriteLine("  --no-docs: omit XML doc comments");
+        Console.Error.WriteLine("  --no-properties-first: sort members by signature instead of properties first, then by name");
         Console.Error.WriteLine("Defaults:");
         Console.Error.WriteLine("  csprojPath: the only *.csproj in the current directory");
         Console.Error.WriteLine("  outputPath: artifacts/public-api-skeleton.cs (nearest artifacts/ folder above the csproj)");
@@ -488,15 +491,14 @@ internal static class Program
             return;
         }
 
-        var members = t.GetMembers()
+        var visibleMembers = t.GetMembers()
             .Where(m => !m.IsImplicitlyDeclared)
             .Where(m => m is not INamedTypeSymbol) // nested types handled separately
             .Where(m => IsExternallyVisibleMember(m))
             .Select(m => (Symbol: m, Line: EmitMember(m, t, ctx, memberFormat, nestedIndent)))
             .Where(x => x.Line.Length != 0)
-            .DistinctBy(x => x.Line, StringComparer.Ordinal)
-            .OrderBy(x => x.Line, StringComparer.Ordinal)
-            .ToList();
+            .DistinctBy(x => x.Line, StringComparer.Ordinal);
+        var members = SortMembers(visibleMembers, ctx);
 
         foreach (var (symbol, line) in members)
         {
@@ -505,12 +507,11 @@ internal static class Program
         }
 
         // Explicit interface implementations (callable via the interface) even though they're often private.
-        var explicitMembers = GetExplicitInterfaceMembers(t)
+        var explicitCandidates = GetExplicitInterfaceMembers(t)
             .Select(m => (Symbol: m, Line: EmitMember(m, t, ctx, memberFormat, nestedIndent)))
             .Where(x => x.Line.Length != 0)
-            .DistinctBy(x => x.Line, StringComparer.Ordinal)
-            .OrderBy(x => x.Line, StringComparer.Ordinal)
-            .ToList();
+            .DistinctBy(x => x.Line, StringComparer.Ordinal);
+        var explicitMembers = SortMembers(explicitCandidates, ctx);
 
         foreach (var (symbol, line) in explicitMembers)
         {
@@ -540,6 +541,15 @@ internal static class Program
 
         lines.Add($"{indent}}}");
     }
+
+    private static List<(ISymbol Symbol, string Line)> SortMembers(IEnumerable<(ISymbol Symbol, string Line)> members, DisplayContext ctx) =>
+        ctx.PropertiesFirst
+            ? members
+                .OrderBy(x => x.Symbol is IPropertySymbol ? 0 : 1)
+                .ThenBy(x => x.Symbol.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Line, StringComparer.Ordinal)
+                .ToList()
+            : members.OrderBy(x => x.Line, StringComparer.Ordinal).ToList();
 
     private static void AddDocs(List<string> lines, ISymbol symbol, DisplayContext ctx, string indent)
     {
@@ -983,9 +993,11 @@ internal static class Program
         SymbolDisplayFormat qualifiedTypeFormat,
         HashSet<string> ambiguousShortTypeKeys,
         SortedSet<string> namespacesToImport,
-        bool includeDocs)
+        bool includeDocs,
+        bool propertiesFirst)
     {
         public bool IncludeDocs { get; } = includeDocs;
+        public bool PropertiesFirst { get; } = propertiesFirst;
         public SymbolDisplayFormat ShortTypeFormat { get; } = shortTypeFormat;
         public SymbolDisplayFormat QualifiedTypeFormat { get; } = qualifiedTypeFormat;
         public HashSet<string> AmbiguousShortTypeKeys { get; } = ambiguousShortTypeKeys;

@@ -57,6 +57,44 @@ public class ProgramTests
     }
 
     [Fact]
+    public async Task Orders_properties_first_then_by_name()
+    {
+        var api = await GenerateAsync("--no-docs");
+
+        AssertInOrder(api,
+            "public int InitOnly { get; init; }",
+            "public int PrivateSetter { get; }",
+            "public int ProtectedSetter { get; protected set; }",
+            "public int Size { get; set; }",
+            "public Widget(int size);",
+            "public const string Name = @\"widget\";",
+            "public static Widget operator +(Widget a, Widget b);",
+            "public virtual void Resize(int width, int height = 10);",
+            "public void Resolve(string @ref);");
+    }
+
+    [Fact]
+    public async Task Orders_by_signature_with_no_properties_first()
+    {
+        var api = await GenerateAsync("--no-docs", "--no-properties-first");
+
+        AssertInOrder(api,
+            "public Widget(int size);",
+            "public const string Name = @\"widget\";",
+            "public int InitOnly { get; init; }",
+            "public static Widget operator +(Widget a, Widget b);",
+            "public virtual void Resize(int width, int height = 10);",
+            "public void Resolve(string @ref);");
+    }
+
+    private static void AssertInOrder(string text, params string[] expected)
+    {
+        var positions = expected.Select(e => text.IndexOf(e, StringComparison.Ordinal)).ToArray();
+        Assert.All(positions, p => Assert.NotEqual(-1, p));
+        Assert.Equal(positions.Order(), positions);
+    }
+
+    [Fact]
     public async Task Renders_accessors_by_visibility()
     {
         var api = await GenerateAsync();
